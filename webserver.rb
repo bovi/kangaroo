@@ -2,11 +2,45 @@
 
 require 'webrick'
 
+def get_results(csv)
+  results = {}
+
+  unless File.exists? csv
+    return results
+  end
+
+  File.open(csv).each do |line|
+    next if line =~ /Lang/
+    time, lang, klass, year, task, answer,
+      reference_answer, correct,duration = line.chomp.split(',')
+
+    key = "#{lang}_#{klass}_#{year}_#{task}"
+    if results.has_key? key
+      ratio = correct == 'true' ? 1 : -1
+      results[key] = {
+        times: results[key][:times] + 1,
+        durations: results[key][:durations] << duration,
+        ratio: results[key][:ratio] + ratio
+      }
+    else
+      ratio = correct == 'true' ? 1 : -1
+      results[key] = {
+        times: 1,
+        durations: [duration],
+        ratio: ratio
+      }
+    end
+  end
+
+  results
+end
+
 # acquire a new question
 # only for `klass`
-def get_question(csv, klass)
+def get_question(csv_solutions, csv_results, klass)
   questions = []
-  File.open(csv).each do |line|
+  results = get_results(csv_results)
+  File.open(csv_solutions).each do |line|
     # skip header line
     next if line =~ /Lang/
 
@@ -14,6 +48,11 @@ def get_question(csv, klass)
 
     # skip lines that don't match the selected class
     next if t[1] != klass
+    key = "#{t[0]}_#{t[1]}_#{t[2]}_#{t[3]}"
+
+    if results.has_key? key
+      next
+    end
 
     questions << line.chomp.split(',')
   end
@@ -53,9 +92,40 @@ RESULTS = File.expand_path(File.join(File.dirname(__FILE__), 'results.csv'))
 KLASS = '34'
 server = WEBrick::HTTPServer.new :Port => 8080
 
+server.mount_proc '/stats' do |req, res|
+  results = get_results(RESULTS)
+
+  table = "<table border='1'>"
+  table << "<tr><th>Question</th><th>Tries</th><th>Ratio</th><th>Average Duration</th></tr>"
+  r_sorted = results.sort_by{|i,j| i.split('_')[5] }
+  r_sorted.each do |key, value|
+    id = key
+    lang, klass, year, question = key.split('_')
+    times = value[:times]
+    ratio = value[:ratio]
+    duration = value[:durations].map {|i| i.to_i}.sum / value[:durations].size
+    table << "<tr><td><a href='/exams/#{lang}/#{klass}/#{year}/#{question}.PNG'>#{id}</a></td>"
+    table << "<td>#{times}</td><td>#{ratio}</td><td>#{duration}</td></tr>"
+  end
+  table << "</table>"
+  total_questions_answered = results.to_a.inject{|s,n|r=s[1][:times]+n[1][:times]; [nil, {times:r}]}
+  total_questions_answered = total_questions_answered[1][:times]
+  res.body = <<HTML
+<html>
+<body>
+<div>Total unique questions answered: #{results.size}</div>
+<br />
+<div>Total questions answered: #{total_questions_answered}</div>
+<br />
+#{table}
+</body>
+</html>
+HTML
+end
+
 # define webapp
 server.mount_proc '/' do |req, res|
-  lang, klass, year, task = get_question(SOLUTIONS, KLASS)
+  lang, klass, year, task = get_question(SOLUTIONS, RESULTS, KLASS)
   answers_today = get_todays_answers(RESULTS)
   # increase size of a checkbox in HTML
   res.body = <<~HTML
