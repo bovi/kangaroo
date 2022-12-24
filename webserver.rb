@@ -97,7 +97,7 @@ server.mount_proc '/stats' do |req, res|
 
   table = "<table border='1'>"
   table << "<tr><th>Question</th><th>Tries</th><th>Ratio</th><th>Average Duration</th></tr>"
-  r_sorted = results.sort_by{|i,j| i.split('_')[5] }
+  r_sorted = results.sort_by{|i,j| j[:ratio].to_i}
   r_sorted.each do |key, value|
     id = key
     lang, klass, year, question = key.split('_')
