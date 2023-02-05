@@ -122,91 +122,90 @@ server.mount_proc '/stats' do |req, res|
   total_questions_answered = total_questions_answered[1][:times]
   res.body = <<HTML
 <html>
-<body>
-<div>Total unique questions answered: #{results.size}</div>
-<br />
-<div>Total questions answered: #{total_questions_answered}</div>
-<br />
-#{table}
-</body>
+  <body>
+    <div>Total unique questions answered: #{results.size}</div>
+    <br />
+    <div>Total questions answered: #{total_questions_answered}</div>
+    <br />
+    #{table}
+  </body>
 </html>
 HTML
 end
 
 # define webapp
-server.mount_proc '/' do |req, res|
+server.mount_proc '/question' do |req, res|
   lang, klass, year, task = get_question(SOLUTIONS, RESULTS, KLASS, FILTER_ALTER_ASKED, FILTER_EASY_QUESTIONS)
   answers_today = get_todays_answers(RESULTS)
   # increase size of a checkbox in HTML
   res.body = <<~HTML
 <html>
-<head>
-<title>Question</title>
-</head>
-<style>
-input[type='radio'] {
-    -webkit-appearance:none;
-    width:50px;
-    height:50px;
-    background:white;
-    border-radius:5px;
-    border:2px solid #555;
-}
-input[type='radio']:checked {
-    background: blue;
-}
-</style>
-<body>
-<div>Solved in the last 24 hours: #{answers_today}</div>
-<div style="text-align:center; color: blue; font-size: 4em"><b>Question</b></div>
-<br />
-<div style="text-align: center; font-size: 3em;">
-
-<img src="/exams/#{lang}/#{klass}/#{year}/#{task}.PNG" style="width: 75%;" />
-</div>
-<br />
-<br />
-<div style="text-align: center; font-size: 3em;">
-<form id="form" action="/answer" method="post">
-<input type="radio" name="answer" value="A" /> A &nbsp;&nbsp;&nbsp;
-<input type="radio" name="answer" value="B" /> B &nbsp;&nbsp;&nbsp;
-<input type="radio" name="answer" value="C" /> C &nbsp;&nbsp;&nbsp;
-<input type="radio" name="answer" value="D" /> D &nbsp;&nbsp;&nbsp;
-<input type="radio" name="answer" value="E" /> E
-<input type="hidden" name="lang" value="#{lang}" />
-<input type="hidden" name="klass" value="#{klass}" />
-<input type="hidden" name="year" value="#{year}" />
-<input type="hidden" name="task" value="#{task}" />
-<input type="hidden" name="time" value="#{Time.now.to_i}" />
-<br /><br />
-<input style="font-size: 1em" type="submit" value="Submit" disabled />
-</form>
-</div>
-<script>
-const getRadioValue = (name) => {
-  const radios = document.getElementsByName(name);
-  let val;   
-  Object.keys(radios).forEach((obj, i) => {
-    if (radios[i].checked) {
-      val = radios[i].value;
+  <head>
+    <title>Question</title>
+  </head>
+  <style>
+    input[type='radio'] {
+        -webkit-appearance:none;
+        width:50px;
+        height:50px;
+        background:white;
+        border-radius:5px;
+        border:2px solid #555;
     }
-  });
-  var btn = document.querySelector('[type=submit]');
-  btn.disabled = false;
-  return val;
-} 
+    input[type='radio']:checked {
+        background: blue;
+    }
+  </style>
+  <body>
+    <div>Solved in the last 24 hours: #{answers_today}</div>
+    <div style="text-align:center; color: blue; font-size: 4em"><b>Question</b></div>
+    <br />
+    <div style="text-align: center; font-size: 3em;">
+      <img src="/exams/#{lang}/#{klass}/#{year}/#{task}.PNG" style="width: 75%;" />
+    </div>
+    <br />
+    <br />
+    <div style="text-align: center; font-size: 3em;">
+      <form id="form" action="/answer" method="post">
+        <input type="radio" name="answer" value="A" /> A &nbsp;&nbsp;&nbsp;
+        <input type="radio" name="answer" value="B" /> B &nbsp;&nbsp;&nbsp;
+        <input type="radio" name="answer" value="C" /> C &nbsp;&nbsp;&nbsp;
+        <input type="radio" name="answer" value="D" /> D &nbsp;&nbsp;&nbsp;
+        <input type="radio" name="answer" value="E" /> E
+        <input type="hidden" name="lang" value="#{lang}" />
+        <input type="hidden" name="klass" value="#{klass}" />
+        <input type="hidden" name="year" value="#{year}" />
+        <input type="hidden" name="task" value="#{task}" />
+        <input type="hidden" name="time" value="#{Time.now.to_i}" />
+        <br /><br />
+        <input style="font-size: 1em" type="submit" value="Submit" disabled />
+      </form>
+    </div>
+    <script>
+      const getRadioValue = (name) => {
+        const radios = document.getElementsByName(name);
+        let val;   
+        Object.keys(radios).forEach((obj, i) => {
+          if (radios[i].checked) {
+            val = radios[i].value;
+          }
+        });
+        var btn = document.querySelector('[type=submit]');
+        btn.disabled = false;
+        return val;
+      } 
 
-document.getElementById('form').addEventListener('change', (e) => {
-    getRadioValue('answer'); // value of checked radio button.
-});
+      document.getElementById('form').addEventListener('change', (e) => {
+          getRadioValue('answer'); // value of checked radio button.
+      });
 
-// disable button after first click
-document.getElementById('form').addEventListener('submit', (e) => {
-  var btn = document.querySelector('[type=submit]');
-  btn.disabled = true;
-});
-</script>
-</body>
+      // disable button after first click
+      document.getElementById('form').addEventListener('submit', (e) => {
+        var btn = document.querySelector('[type=submit]');
+        btn.disabled = true;
+      });
+    </script>
+  </body>
 </html>
 HTML
 end
@@ -228,7 +227,8 @@ server.mount_proc '/answer' do |req, res|
   reference_answer = get_solution(lang, klass, year, task, SOLUTIONS).upcase
   correct = answer.upcase == reference_answer.upcase
 
-  l = "#{Time.now.to_i},#{lang},#{klass},#{year},#{task},#{answer},#{reference_answer},#{correct},#{duration}"
+  l = "#{Time.now.to_i},#{lang},#{klass},#{year},#{task},#{answer}," +
+       "#{reference_answer},#{correct},#{duration}"
   File.open(RESULTS, 'a') do |f|
     f.puts l
   end
@@ -236,18 +236,22 @@ server.mount_proc '/answer' do |req, res|
   # return if answer is correct
   result = if correct
     <<HTML
-<title>Correct</title>
+  <title>Correct</title>
 </head>
 <body>
-<div style="font-size: 5em; text-align: center; color: #62ff33;"><b>Correct</b></div>
+  <div style="font-size: 5em; text-align: center; color: #62ff33;">
+    <b>Correct</b>
+  </div>
 HTML
   else
     <<HTML
-<title>Wrong</title>
+  <title>Wrong</title>
 </head>
 <body>
-<div style="font-size: 5em; text-align: center; color: #f23939;"><b>Wrong</b>
-(you selected: #{answer.upcase})</div>
+  <div style="font-size: 5em; text-align: center; color: #f23939;">
+    <b>Wrong</b>
+    (you selected: #{answer.upcase})
+  </div>
 HTML
   end
   # format image to be always 100% width
@@ -257,7 +261,9 @@ HTML
 #{result}
 <br />
 <div style="text-align: center; font-size: 3em;">
-<span style="color: blue">Correct Answer is <b>#{reference_answer.to_s.upcase}</b>
+<span style="color: blue">
+  Correct Answer is <b>#{reference_answer.to_s.upcase}
+</b>
 for this question:</span>
 <br />
 <br />
@@ -265,7 +271,9 @@ for this question:</span>
 <br />
 <br />
 <!-- make a link to the next question which looks like a button -->
-<a href="/" style="font-size: 1em; text-decoration: none; color: white; background-color: blue; padding: 10px; border-radius: 5px; font-weight: bold">Next Question</a>
+<a href="/question" style="font-size: 1em; text-decoration: none; color: white;
+   background-color: blue; padding: 10px; border-radius: 5px; 
+   font-weight: bold">Next Question</a>
 </div>
 </body>
 </html>
