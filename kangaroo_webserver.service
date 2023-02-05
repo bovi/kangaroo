@@ -1,0 +1,11 @@
+[Unit]
+Description=NAS Webserver
+
+[Service]
+User=root
+WorkingDirectory=/tmp
+ExecStart=/usr/bin/ruby /opt/bin/kangaroo_webserver.rb
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

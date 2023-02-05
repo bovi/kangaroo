@@ -37,7 +37,7 @@ end
 
 # acquire a new question
 # only for `klass`
-def get_question(csv_solutions, csv_results, klass)
+def get_question(csv_solutions, csv_results, klass, skip_if_asked, skip_if_easy)
   questions = []
   results = get_results(csv_results)
   File.open(csv_solutions).each do |line|
@@ -51,11 +51,18 @@ def get_question(csv_solutions, csv_results, klass)
     key = "#{t[0]}_#{t[1]}_#{t[2]}_#{t[3]}"
 
     if results.has_key? key
-      next
+      # skip if already asked
+      next if skip_if_asked
+
+      # skip if already answered correctly
+      if skip_if_easy
+        next if results[key][:ratio] > 0
+      end
     end
 
     questions << line.chomp.split(',')
   end
+
   questions.sample
 end
 
@@ -87,9 +94,12 @@ def get_todays_answers(csv)
 end
 
 # absolute from current directory
-SOLUTIONS = File.expand_path(File.join(File.dirname(__FILE__), 'solutions.csv'))
-RESULTS = File.expand_path(File.join(File.dirname(__FILE__), 'results.csv'))
+SOLUTIONS = File.expand_path(File.join(File.dirname(__FILE__), '..', 'var', 'kangaroo', 'solutions.csv'))
+RESULTS = File.expand_path(File.join(File.dirname(__FILE__), '..', 'var', 'kangaroo', 'results.csv'))
+EXAMS = File.expand_path(File.join(File.dirname(__FILE__), '..', 'var', 'kangaroo', 'exams'))
 KLASS = '34'
+FILTER_ALTER_ASKED = false
+FILTER_EASY_QUESTIONS = true
 server = WEBrick::HTTPServer.new :Port => 8080
 
 server.mount_proc '/stats' do |req, res|
@@ -125,7 +135,7 @@ end
 
 # define webapp
 server.mount_proc '/' do |req, res|
-  lang, klass, year, task = get_question(SOLUTIONS, RESULTS, KLASS)
+  lang, klass, year, task = get_question(SOLUTIONS, RESULTS, KLASS, FILTER_ALTER_ASKED, FILTER_EASY_QUESTIONS)
   answers_today = get_todays_answers(RESULTS)
   # increase size of a checkbox in HTML
   res.body = <<~HTML
@@ -219,7 +229,7 @@ server.mount_proc '/answer' do |req, res|
   correct = answer.upcase == reference_answer.upcase
 
   l = "#{Time.now.to_i},#{lang},#{klass},#{year},#{task},#{answer},#{reference_answer},#{correct},#{duration}"
-  File.open('results.csv', 'a') do |f|
+  File.open(RESULTS, 'a') do |f|
     f.puts l
   end
 
@@ -263,7 +273,7 @@ HTML
 end
 
 # mount image folder
-server.mount '/exams', WEBrick::HTTPServlet::FileHandler, 'exams'
+server.mount '/exams', WEBrick::HTTPServlet::FileHandler, EXAMS
 
 trap 'INT' do server.shutdown end
 
