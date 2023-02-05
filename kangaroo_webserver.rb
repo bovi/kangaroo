@@ -37,7 +37,7 @@ end
 
 # acquire a new question
 # only for `klass`
-def get_question(csv_solutions, csv_results, klass, skip_if_asked, skip_if_easy)
+def get_question(csv_solutions, csv_results, klass)
   questions = []
   results = get_results(csv_results)
   File.open(csv_solutions).each do |line|
@@ -49,16 +49,6 @@ def get_question(csv_solutions, csv_results, klass, skip_if_asked, skip_if_easy)
     # skip lines that don't match the selected class
     next if t[1] != klass
     key = "#{t[0]}_#{t[1]}_#{t[2]}_#{t[3]}"
-
-    if results.has_key? key
-      # skip if already asked
-      next if skip_if_asked
-
-      # skip if already answered correctly
-      if skip_if_easy
-        next if results[key][:ratio] > 0
-      end
-    end
 
     questions << line.chomp.split(',')
   end
@@ -102,12 +92,53 @@ FILTER_ALTER_ASKED = false
 FILTER_EASY_QUESTIONS = true
 server = WEBrick::HTTPServer.new :Port => 8080
 
+# index
+server.mount_proc '/' do |req, res|
+  res.body = <<HTML
+<html>
+  <head>
+    <title>Kangaroo</title>
+  </head>
+  <body>
+    <h1>Kangaroo Test Center</h1>
+    <ul>
+      <li><a href="/question?class=34">Test for class 3 and 4</a></li>
+      <li><a href="/question?class=56">Test for class 5 and 6</a></li>
+      <li><a href="/question?class=78">Test for class 7 and 8</a></li>
+      <li><a href="/question?class=910">Test for class 9 and 10</a></li>
+      <li><a href="/question?class=1113">Test for class 11 and 13</a></li>
+      <li><a href="/stats">Statistics</a></li>
+    </ul>
+  </body>
+</html>
+HTML
+end
+
+# statistics
 server.mount_proc '/stats' do |req, res|
+  sort_by = case req.query['by']
+            when 'ratio' then :ratio
+            when 'times' then :times
+            when 'durations' then :durations
+            else :ratio
+            end
+
   results = get_results(RESULTS)
 
   table = "<table border='1'>"
-  table << "<tr><th>Question</th><th>Tries</th><th>Ratio</th><th>Average Duration</th></tr>"
-  r_sorted = results.sort_by{|i,j| j[:ratio].to_i}
+  table << <<HTML
+<tr>
+  <th>Question</th>
+  <th><a href="/stats?by=times">Tries</a></th>
+  <th><a href="/stats?by=ratio">Ratio</a></th>
+  <th><a href="/stats?by=durations">Average Durations</a></th>
+</tr>
+HTML
+
+  r_sorted = case sort_by
+             when :durations then results.sort_by{|i,j| j[:durations].map {|k| k.to_i}.sum / j[:durations].size}
+             else results.sort_by{|i,j| j[sort_by].to_i}
+             end
   r_sorted.each do |key, value|
     id = key
     lang, klass, year, question = key.split('_')
@@ -123,9 +154,15 @@ server.mount_proc '/stats' do |req, res|
   res.body = <<HTML
 <html>
   <body>
-    <div>Total unique questions answered: #{results.size}</div>
-    <br />
-    <div>Total questions answered: #{total_questions_answered}</div>
+    <div style="text-align: center;">
+      <a href="/">Home</a>
+      |
+      <a href="/stats">Statistics</a>
+      |
+      Total unique questions answered: #{results.size}
+      | 
+      Total questions answered: #{total_questions_answered}
+    </div>
     <br />
     #{table}
   </body>
@@ -135,7 +172,8 @@ end
 
 # define webapp
 server.mount_proc '/question' do |req, res|
-  lang, klass, year, task = get_question(SOLUTIONS, RESULTS, KLASS, FILTER_ALTER_ASKED, FILTER_EASY_QUESTIONS)
+  klass = req.query['class']
+  lang, klass, year, task = get_question(SOLUTIONS, RESULTS, klass)
   answers_today = get_todays_answers(RESULTS)
   # increase size of a checkbox in HTML
   res.body = <<~HTML
@@ -157,7 +195,13 @@ server.mount_proc '/question' do |req, res|
     }
   </style>
   <body>
-    <div>Solved in the last 24 hours: #{answers_today}</div>
+    <div style="text-align: center;">
+      <a href="/">Home</a>
+      |
+      <a href="/stats">Statistics</a>
+      |
+      Solved in the last 24 hours: #{answers_today}
+    </div>
     <div style="text-align:center; color: blue; font-size: 4em"><b>Question</b></div>
     <br />
     <div style="text-align: center; font-size: 3em;">
