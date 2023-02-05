@@ -45,7 +45,7 @@ end
 
 # acquire a new question
 # only for `klass`
-def get_question(csv_solutions, csv_results, klass)
+def get_question(csv_solutions, csv_results, klass, id)
   questions = []
   results = get_results(csv_results)
   File.open(csv_solutions).each do |line|
@@ -55,8 +55,13 @@ def get_question(csv_solutions, csv_results, klass)
     t = line.chomp.split(',')
 
     # skip lines that don't match the selected class
-    next if t[1] != klass
     key = "#{t[0]}_#{t[1]}_#{t[2]}_#{t[3]}"
+
+    unless id.nil?
+      next unless key == id
+    else
+      next if t[1] != klass
+    end
 
     questions << line.chomp.split(',')
   end
@@ -195,7 +200,7 @@ HTML
     table << <<HTML
 <tr>
   <td>
-    <a href='/exams/#{lang}/#{klass}/#{year}/#{question}.PNG'>#{id}</a>
+    <a href='/question?id=#{key}'>#{id}</a>
   </td>
   <td>#{klass}</td>
   <td>#{times}</td>
@@ -232,7 +237,8 @@ end
 # define webapp
 server.mount_proc '/question' do |req, res|
   klass = req.query['class']
-  lang, klass, year, task = get_question(SOLUTIONS, RESULTS, klass)
+  id = req.query['id']
+  lang, klass, year, task = get_question(SOLUTIONS, RESULTS, klass, id)
   answers_today = get_todays_answers(RESULTS)
   # increase size of a checkbox in HTML
   res.body = <<~HTML
