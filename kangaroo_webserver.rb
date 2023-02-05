@@ -17,17 +17,25 @@ def get_results(csv)
     key = "#{lang}_#{klass}_#{year}_#{task}"
     if results.has_key? key
       ratio = correct == 'true' ? 1 : -1
+      ok = results[key][:ok]
+      ko = results[key][:ko]
       results[key] = {
         times: results[key][:times] + 1,
         durations: results[key][:durations] << duration,
-        ratio: results[key][:ratio] + ratio
+        ratio: results[key][:ratio] + ratio,
+        ok: correct == 'true' ? ok+1 : ok,
+        ko: correct == 'true' ? ko : ko+1,
+        time: time
       }
     else
       ratio = correct == 'true' ? 1 : -1
       results[key] = {
         times: 1,
         durations: [duration],
-        ratio: ratio
+        ratio: ratio,
+        ok: correct == 'true' ? 1 : 0,
+        ko: correct == 'true' ? 0 : 1,
+        time: time
       }
     end
   end
@@ -83,6 +91,21 @@ def get_todays_answers(csv)
   return today
 end
 
+def format_time(timestamp)
+  diff = Time.now.to_i - timestamp
+
+  case diff
+  when 0...(60*60)
+    'less than 1 hour ago'
+  when (60*60)...(60*60*24)
+    'less than 1 day ago'
+  when (60*60*24)...(60*60*24*7)
+    "#{(diff / 60 / 60 / 24).to_i} days ago"
+  else
+    "#{(diff / 60 / 60 / 24 / 7).to_i} weeks ago"
+  end
+end
+
 # absolute from current directory
 SOLUTIONS = File.expand_path(File.join(File.dirname(__FILE__), '..', 'var', 'kangaroo', 'solutions.csv'))
 RESULTS = File.expand_path(File.join(File.dirname(__FILE__), '..', 'var', 'kangaroo', 'results.csv'))
@@ -120,33 +143,69 @@ server.mount_proc '/stats' do |req, res|
             when 'ratio' then :ratio
             when 'times' then :times
             when 'durations' then :durations
-            else :ratio
+            when 'class' then :class
+            when 'ok' then :ok
+            when 'ko' then :ko
+            when 'time' then :time
+            else :time
             end
 
   results = get_results(RESULTS)
 
-  table = "<table border='1'>"
+  table = "<table border='1' style='margin-left: auto; margin-right: auto'>"
   table << <<HTML
 <tr>
   <th>Question</th>
+  <th><a href="/stats?by=class">Class</a></th>
   <th><a href="/stats?by=times">Tries</a></th>
+  <th><a href="/stats?by=ok">Correct</a></th>
+  <th><a href="/stats?by=ko">Wrong</a></th>
   <th><a href="/stats?by=ratio">Ratio</a></th>
   <th><a href="/stats?by=durations">Average Durations</a></th>
+  <th><a href="/stats?by=time">Last time answered</a></th>
 </tr>
 HTML
 
   r_sorted = case sort_by
-             when :durations then results.sort_by{|i,j| j[:durations].map {|k| k.to_i}.sum / j[:durations].size}
-             else results.sort_by{|i,j| j[sort_by].to_i}
+             when :durations then results.sort_by{|i,j| j[:durations].map {|k| k.to_i}.sum / j[:durations].size}.reverse
+             when :class
+               results.sort_by do |i,j|
+                 lang, klass, year, question = i.split('_')
+                 case klass
+                 when '34' then 1
+                 when '56' then 2
+                 when '78' then 3
+                 when '910' then 4
+                 when '1113' then 5
+                 else 9
+                 end
+               end.reverse
+             when :ratio then results.sort_by{|i,j| j[sort_by].to_i}
+             else results.sort_by{|i,j| j[sort_by].to_i}.reverse
              end
   r_sorted.each do |key, value|
     id = key
     lang, klass, year, question = key.split('_')
     times = value[:times]
     ratio = value[:ratio]
+    ok = value[:ok]
+    ko = value[:ko]
+    last_time_answered = format_time(value[:time].to_i)
     duration = value[:durations].map {|i| i.to_i}.sum / value[:durations].size
-    table << "<tr><td><a href='/exams/#{lang}/#{klass}/#{year}/#{question}.PNG'>#{id}</a></td>"
-    table << "<td>#{times}</td><td>#{ratio}</td><td>#{duration}</td></tr>"
+    table << <<HTML
+<tr>
+  <td>
+    <a href='/exams/#{lang}/#{klass}/#{year}/#{question}.PNG'>#{id}</a>
+  </td>
+  <td>#{klass}</td>
+  <td>#{times}</td>
+  <td>#{ok}</td>
+  <td>#{ko}</td>
+  <td>#{ratio}</td>
+  <td>#{duration}sec</td>
+  <td>#{last_time_answered}</td>
+</tr>
+HTML
   end
   table << "</table>"
   total_questions_answered = results.to_a.inject{|s,n|r=s[1][:times]+n[1][:times]; [nil, {times:r}]}
@@ -292,6 +351,11 @@ HTML
   <title>Wrong</title>
 </head>
 <body>
+  <div style="text-align: center;">
+    <a href="/">Home</a>
+    |
+    <a href="/stats">Statistics</a>
+  </div>
   <div style="font-size: 5em; text-align: center; color: #f23939;">
     <b>Wrong</b>
     (you selected: #{answer.upcase})
@@ -315,7 +379,7 @@ for this question:</span>
 <br />
 <br />
 <!-- make a link to the next question which looks like a button -->
-<a href="/question" style="font-size: 1em; text-decoration: none; color: white;
+<a href="/question?class=#{klass}" style="font-size: 1em; text-decoration: none; color: white;
    background-color: blue; padding: 10px; border-radius: 5px; 
    font-weight: bold">Next Question</a>
 </div>
