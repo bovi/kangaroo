@@ -127,14 +127,19 @@ server.mount_proc '/' do |req, res|
   <head>
     <title>Kangaroo</title>
   </head>
+  <style>
+    ul {
+      font-size: 2em
+    }
+  </style>
   <body>
-    <h1>Kangaroo Test Center</h1>
+    <h1>Aaron's Kangaroo Test Center</h1>
     <ul>
-      <li><a href="/question?class=34">Test for class 3 and 4</a></li>
-      <li><a href="/question?class=56">Test for class 5 and 6</a></li>
-      <li><a href="/question?class=78">Test for class 7 and 8</a></li>
-      <li><a href="/question?class=910">Test for class 9 and 10</a></li>
-      <li><a href="/question?class=1113">Test for class 11 and 13</a></li>
+      <li><a href="/question?class=34">Test for class 3 and 4</a><br>&nbsp;</li>
+      <li><a href="/question?class=56">Test for class 5 and 6</a><br>&nbsp;</li>
+      <li><a href="/question?class=78">Test for class 7 and 8</a><br>&nbsp;</li>
+      <li><a href="/question?class=910">Test for class 9 and 10</a><br>&nbsp;</li>
+      <li><a href="/question?class=1113">Test for class 11 and 13</a><br>&nbsp;</li>
       <li><a href="/stats">Statistics</a></li>
     </ul>
   </body>
