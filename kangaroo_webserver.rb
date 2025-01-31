@@ -10,7 +10,7 @@ def get_results(csv)
     return results
   end
 
-  File.open(csv).each do |line|
+  File.open(csv, 'r:UTF-8').each do |line|
     next if line =~ /Lang/
     time, lang, klass, year, task, answer,
       reference_answer, correct, duration = line.chomp.split(',')
@@ -54,7 +54,7 @@ def get_question(csv_solutions, csv_results, klass, id)
   asked_questions = get_results(csv_results).keys.to_set
   
   # Get available questions
-  File.open(csv_solutions).each do |line|
+  File.open(csv_solutions, 'r:UTF-8').each do |line|
     next if line =~ /Lang/
     t = line.chomp.split(',')
 
@@ -75,7 +75,7 @@ def get_question(csv_solutions, csv_results, klass, id)
   
   # If all questions have been asked (and no specific id was requested), reset and use all questions
   if questions.empty? && id.nil?
-    File.open(csv_solutions).each do |line|
+    File.open(csv_solutions, 'r:UTF-8').each do |line|
       next if line =~ /Lang/
       t = line.chomp.split(',')
       next if t[1] != klass
@@ -89,7 +89,7 @@ end
 # get the correct solution for a specific question
 def get_solution(lang, klass, year, question_no, csv)
   # open csv file and find answer
-  File.open(csv).each do |line|
+  File.open(csv, 'r:UTF-8').each do |line|
     next if line =~ /Lang/
     next unless line =~ /#{lang},#{klass},#{year},#{question_no},/
     return line.chomp.split(',')[4]
@@ -100,7 +100,7 @@ end
 def get_todays_answers(csv)
   today = 0
 
-  File.open(csv).each do |line|
+  File.open(csv, 'r:UTF-8').each do |line|
     next if line =~ /Lang/
     time = line.chomp.split(',')[0]
     # if the answer was given less than 16h ago
