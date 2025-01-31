@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'webrick'
+require 'set'
 
 def get_results(csv)
   results = {}
@@ -12,7 +13,10 @@ def get_results(csv)
   File.open(csv).each do |line|
     next if line =~ /Lang/
     time, lang, klass, year, task, answer,
-      reference_answer, correct,duration = line.chomp.split(',')
+      reference_answer, correct, duration = line.chomp.split(',')
+    
+    # Skip if time is not a valid number
+    next unless time =~ /^\d+$/
 
     key = "#{lang}_#{klass}_#{year}_#{task}"
     if results.has_key? key
@@ -47,23 +51,36 @@ end
 # only for `klass`
 def get_question(csv_solutions, csv_results, klass, id)
   questions = []
-  results = get_results(csv_results)
+  asked_questions = get_results(csv_results).keys.to_set
+  
+  # Get available questions
   File.open(csv_solutions).each do |line|
-    # skip header line
     next if line =~ /Lang/
-
     t = line.chomp.split(',')
 
     # skip lines that don't match the selected class
     key = "#{t[0]}_#{t[1]}_#{t[2]}_#{t[3]}"
-
-    unless id.nil?
-      next unless key == id
-    else
+    
+    if id.nil?
+      # For random questions, filter by class and unasked only
       next if t[1] != klass
+      questions << line.chomp.split(',') unless asked_questions.include?(key)
+    else
+      # For specific question requests, only filter by id
+      questions << line.chomp.split(',') if key == id
     end
-
-    questions << line.chomp.split(',')
+  end
+  
+  puts "Available new questions for class #{klass}: #{questions.size}" if id.nil?
+  
+  # If all questions have been asked (and no specific id was requested), reset and use all questions
+  if questions.empty? && id.nil?
+    File.open(csv_solutions).each do |line|
+      next if line =~ /Lang/
+      t = line.chomp.split(',')
+      next if t[1] != klass
+      questions << line.chomp.split(',')
+    end
   end
 
   questions.sample
@@ -112,9 +129,9 @@ def format_time(timestamp)
 end
 
 # absolute from current directory
-SOLUTIONS = File.expand_path(File.join(File.dirname(__FILE__), '..', 'var', 'kangaroo', 'solutions.csv'))
-RESULTS = File.expand_path(File.join(File.dirname(__FILE__), '..', 'var', 'kangaroo', 'results.csv'))
-EXAMS = File.expand_path(File.join(File.dirname(__FILE__), '..', 'var', 'kangaroo', 'exams'))
+SOLUTIONS = File.expand_path(File.join(File.dirname(__FILE__), 'solutions.csv'))
+RESULTS = File.expand_path(File.join(File.dirname(__FILE__), 'results.csv'))
+EXAMS = File.expand_path(File.join(File.dirname(__FILE__), 'exams'))
 KLASS = '34'
 FILTER_ALTER_ASKED = false
 FILTER_EASY_QUESTIONS = true
@@ -161,6 +178,13 @@ server.mount_proc '/stats' do |req, res|
             end
 
   results = get_results(RESULTS)
+  
+  # Handle empty results
+  total_questions_answered = if results.empty?
+    0
+  else
+    results.to_a.inject{|s,n|r=s[1][:times]+n[1][:times]; [nil, {times:r}]}[1][:times]
+  end
 
   table = "<table border='1' style='margin-left: auto; margin-right: auto'>"
   table << <<HTML
@@ -176,33 +200,34 @@ server.mount_proc '/stats' do |req, res|
 </tr>
 HTML
 
-  r_sorted = case sort_by
-             when :durations then results.sort_by{|i,j| j[:durations].map {|k| k.to_i}.sum / j[:durations].size}.reverse
-             when :class
-               results.sort_by do |i,j|
-                 lang, klass, year, question = i.split('_')
-                 case klass
-                 when '34' then 1
-                 when '56' then 2
-                 when '78' then 3
-                 when '910' then 4
-                 when '1113' then 5
-                 else 9
-                 end
-               end.reverse
-             when :ratio then results.sort_by{|i,j| j[sort_by].to_i}
-             else results.sort_by{|i,j| j[sort_by].to_i}.reverse
-             end
-  r_sorted.each do |key, value|
-    id = key
-    lang, klass, year, question = key.split('_')
-    times = value[:times]
-    ratio = value[:ratio]
-    ok = value[:ok]
-    ko = value[:ko]
-    last_time_answered = format_time(value[:time].to_i)
-    duration = value[:durations].map {|i| i.to_i}.sum / value[:durations].size
-    table << <<HTML
+  unless results.empty?
+    r_sorted = case sort_by
+               when :durations then results.sort_by{|i,j| j[:durations].map {|k| k.to_i}.sum / j[:durations].size}.reverse
+               when :class
+                 results.sort_by do |i,j|
+                   lang, klass, year, question = i.split('_')
+                   case klass
+                   when '34' then 1
+                   when '56' then 2
+                   when '78' then 3
+                   when '910' then 4
+                   when '1113' then 5
+                   else 9
+                   end
+                 end.reverse
+               when :ratio then results.sort_by{|i,j| j[sort_by].to_i}
+               else results.sort_by{|i,j| j[sort_by].to_i}.reverse
+               end
+    r_sorted.each do |key, value|
+      id = key
+      lang, klass, year, question = key.split('_')
+      times = value[:times]
+      ratio = value[:ratio]
+      ok = value[:ok]
+      ko = value[:ko]
+      last_time_answered = format_time(value[:time].to_i)
+      duration = value[:durations].map {|i| i.to_i}.sum / value[:durations].size
+      table << <<HTML
 <tr>
   <td>
     <a href='/question?id=#{key}'>#{id}</a>
@@ -216,10 +241,10 @@ HTML
   <td>#{last_time_answered}</td>
 </tr>
 HTML
+    end
   end
   table << "</table>"
-  total_questions_answered = results.to_a.inject{|s,n|r=s[1][:times]+n[1][:times]; [nil, {times:r}]}
-  total_questions_answered = total_questions_answered[1][:times]
+
   res.body = <<HTML
 <html>
   <body>
